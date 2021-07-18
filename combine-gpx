@@ -1,0 +1,46 @@
+#!/bin/bash
+
+combine-gpx.log() {
+    1>&2 echo "combine-gpx: $*"
+}
+
+if [[ "$1" =~ ""|-h|--help ]]
+then
+    combine-gpx.log "Combine GPX files (in order) and print to stdout"
+    combine-gpx.log "Usage: combine-gpx <FILE 1> <FILE 2> [FILE N ...]"
+    exit 2
+fi
+
+USABLE_FILES=()
+
+for FILE in "$@"
+do
+    if [[ ! -r "$FILE" ]]
+    then
+        combine-gpx.log "[WARNING] Cannot read file '$FILE' skipping."
+    else
+        USABLE_FILES+=("$FILE")
+    fi
+done
+
+if ((${#USABLE_FILES[@]} == 0))
+then
+    combine-gpx.log "[Error] None of the supplied filenames are readable files."
+    exit 1
+fi
+
+# First get headers from the first file
+awk '{if ($0 ~ /trkpt/) {exit} else {print}}' "${USABLE_FILES[0]}"
+
+# Now get the trackpoints from all the usable files
+for FILE in "${USABLE_FILES[@]}"
+do
+    awk '/trkpt/,/\/trkpt/' "$FILE"
+done
+
+# Finally, get footers from the final file
+# (These should be identical to those of the first file)
+tac "${USABLE_FILES[${#USABLE_FILES[@]}-1]}" \
+    | awk '{if ($0 ~ /trkpt/) {exit} else {print}}' \
+    | tac
+
